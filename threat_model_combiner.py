@@ -8,33 +8,38 @@
 # 
 # primary_pocket_computer, primary_laptop_computer, gsm_phone, computer_sec, phone_banking_sim, android_secure
 # ---------------------------------------------
+# 
 # primary_pocket_computer
 #   phys=2, near=1, remote=1
-#  * usecase_personal_computing, usecase_personal_keepass, usecase_android_device, usecase_personal_google_account_android
+#  * usecase_personal_keepass, usecase_personal_google_account_android, usecase_bluetooth_music, usecase_personal_computing, usecase_android_device
+# 
 # primary_laptop_computer
 #   phys=2, near=1, remote=1
-#  * usecase_nongsm_device, usecase_personal_keepass, usecase_nonotp_device, usecase_personal_computing, usecase_computer, usecase_personal_google_account_computer
+#  * usecase_nongsm_device, usecase_personal_keepass, usecase_nonotp_device, usecase_computer, usecase_personal_google_account_computer, usecase_personal_computing
 #  * usecase_sometimes_login_to_work_email
+# 
 # gsm_phone
 #   phys=2, near=1, remote=1
 #  * usecase_personal_gsm_sim, usecase_android_device
-#  * usecase_junk_apps
 #  * usecase_freeotp_work
+#  * usecase_junk_apps
+# 
 # computer_sec
 #   phys=2, near=2, remote=2
 #  * usecase_secure_keepass, usecase_nongsm_device, usecase_personal_keepass, usecase_nonotp_device, usecase_computer, usecase_secure_computing
+#  * usecase_secure_google_account
+# 
 # phone_banking_sim
 #   phys=1, near=1, remote=1
-#  * usecase_too_old_android, usecase_banking_gsm_sim, usecase_android_device
+#  * usecase_android_device, usecase_banking_gsm_sim, usecase_too_old_android
+# 
 # android_secure
 #   phys=2, near=2, remote=2
 #  * usecase_secure_keepass, usecase_android_device
-#  * usecase_secure_keepass
-#  * usecase_banking_app
-#  * usecase_secure_google_account
 #  * usecase_freeotp_personal
-# 
+#  * usecase_banking_app
 # ---------------------------------------------
+# 
 # 
 
 import random
@@ -208,13 +213,13 @@ usecase_personal_google_account_android = Usecase(name="usecase_personal_google_
 # Personal FreeOTP has 2FA for the personal google account, so it can't be on the same device.
 usecase_personal_google_account_computer = Usecase(name="usecase_personal_google_account_computer", 
                                     req_min_sec_phys=DIFF_HARD, req_min_sec_near=DIFF_EASY, req_min_sec_remote=DIFF_EASY, 
-                                    introduces_attack_vectors=[attack_google_hard, attack_net_hard, attack_app_hard, attack_wifi_hard], 
+                                    introduces_attack_vectors=[attack_google_easy, attack_net_hard, attack_app_hard, attack_wifi_hard], 
                                     colliding_usecases=[usecase_banking_gsm_sim, usecase_freeotp_personal])
 
 # I just refuse to do anything with this account on a device with any GSM SIM used, even for one minute.
 usecase_secure_google_account = Usecase(name="usecase_secure_google_account", 
                                     req_min_sec_phys=DIFF_HARD, req_min_sec_near=DIFF_HARD, req_min_sec_remote=DIFF_HARD, 
-                                    introduces_attack_vectors=[attack_app_hard, attack_wifi_hard],  # if used on an android device in a logged in android account
+                                    introduces_attack_vectors=[attack_google_hard, attack_app_hard, attack_wifi_hard],  # if used on an android device as a logged in android account
                                     colliding_usecases=[usecase_banking_gsm_sim, usecase_personal_gsm_sim])
 
 # I just refuse to do anything with this account on a device with any GSM SIM used, even for one minute.
@@ -257,9 +262,10 @@ usecase_nongsm_device = Usecase(name="usecase_nongsm_device",
 usecase_nonotp_device = Usecase(name="usecase_nonotp_device", 
                                     colliding_usecases=[usecase_freeotp_work, usecase_freeotp_personal])
 
-# Can't use apps
+# Can't use android apps
 usecase_computer = Usecase(name="usecase_computer", 
-                                    colliding_usecases=[usecase_banking_app, usecase_personal_google_account_android, usecase_junk_apps])
+                                    colliding_usecases=[usecase_banking_app, usecase_personal_google_account_android, usecase_junk_apps,
+                                                        usecase_freeotp_work, usecase_freeotp_personal])
 
 # Not used exactly as a desktop computer
 usecase_android_device = Usecase(name="usecase_android_device", 
@@ -372,7 +378,7 @@ gsm_phone = Device(name="gsm_phone",
 computer_sec = Device(name="computer_sec", 
                                     pinned_usecases=[usecase_computer, usecase_nongsm_device, usecase_nonotp_device, 
                                                         usecase_secure_computing, usecase_secure_keepass, usecase_personal_keepass],
-                    max_sec_phys=DIFF_HARD, max_sec_near=DIFF_HARD, max_sec_remote=DIFF_HARD)
+                                    max_sec_phys=DIFF_HARD, max_sec_near=DIFF_HARD, max_sec_remote=DIFF_HARD)
 
 phone_banking_sim = Device(name="phone_banking_sim", 
                                     pinned_usecases=[usecase_android_device, usecase_too_old_android, 
@@ -392,7 +398,7 @@ android_b = Device(name="android_b",
 devices = [primary_pocket_computer, primary_laptop_computer, gsm_phone, computer_sec, phone_banking_sim, android_secure]
 
 # usecases to distribute, each usecase to one device
-usecases = [usecase_freeotp_personal, usecase_freeotp_work, usecase_banking_app, usecase_secure_google_account, usecase_secure_keepass, usecase_junk_apps, usecase_sometimes_login_to_work_email]
+usecases = [usecase_freeotp_personal, usecase_freeotp_work, usecase_banking_app, usecase_secure_google_account, usecase_junk_apps, usecase_sometimes_login_to_work_email]
 
 
 def random_device_usecase_assignment(devices, usecases):
@@ -414,6 +420,7 @@ def print_device_usecase_assignment(devices):
     print(", ".join([x.name for x in devices]))
     print("---------------------------------------------")
     for d in devices:
+        print("")
         print(d.name)
         print("  phys={}, near={}, remote={}".format(*d.calculate_usecase_max_sec()))
         if d.pinned_usecases:
@@ -440,7 +447,10 @@ for i in range(1):
             break
 
 
-# TODO cross-device attacks - seeing banking 2FA sms is not bad for the phone but bad if the attacker has credentials to the bank
+# TODO cross-device attacks
+#       - seeing banking 2FA sms is not bad for the phone but bad if the attacker has credentials to the bank
+#       - mobile phone can be attackable through logged in google account on a desktop computer under some conditions
+#           - NOTE: it looks like Google made it so that if a particular desktop session is not used for app installations, then any installation attempt is behind a login screen, which seems an adequate mitigation
 # TODO finer preferences - having junk apps on primary pocket computer is not bad per the computed policies but I prefer not to do that
 # TODO better handling of chained attacks - e.g. attacker turns off airplane mode to let the device connect to gsm/wifi that is vulnerable and performs an attack through that
 
