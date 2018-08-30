@@ -5,42 +5,54 @@
 
 
 # Example output:
+#
+# Initial check - the set of devices and their pinned usecases can work: True
 # 
-# primary_pocket_computer, primary_laptop_computer, gsm_phone, computer_sec, phone_banking_sim, android_secure
+# 
+# primary_pocket_computer, primary_laptop_computer, gsm_phone, computer_sec, android_secure, windows_tablet, work_computer, work_pocket_computer
 # ---------------------------------------------
 # 
 # primary_pocket_computer
 #   phys=2, near=1, remote=1
-#  * usecase_personal_keepass, usecase_personal_google_account_android, usecase_bluetooth_music, usecase_personal_computing, usecase_android_device
+#  * usecase_personal_google_account_android, usecase_bluetooth_music, usecase_personal_keepass, usecase_android_device, usecase_personal_computing
 # 
 # primary_laptop_computer
 #   phys=2, near=1, remote=1
-#  * usecase_nongsm_device, usecase_personal_keepass, usecase_nonotp_device, usecase_computer, usecase_personal_google_account_computer, usecase_personal_computing
-#  * usecase_sometimes_login_to_work_email
+#  * usecase_nongsm_device, usecase_personal_google_account_computer, usecase_nonotp_device, usecase_personal_keepass, usecase_computer, usecase_personal_computing
 # 
 # gsm_phone
 #   phys=2, near=1, remote=1
-#  * usecase_personal_gsm_sim, usecase_android_device
-#  * usecase_freeotp_work
+#  * usecase_android_device, usecase_personal_gsm_sim
 #  * usecase_junk_apps
+#  * usecase_sometimes_login_to_work_email
 # 
 # computer_sec
 #   phys=2, near=2, remote=2
-#  * usecase_secure_keepass, usecase_nongsm_device, usecase_personal_keepass, usecase_nonotp_device, usecase_computer, usecase_secure_computing
-#  * usecase_secure_google_account
-# 
-# phone_banking_sim
-#   phys=1, near=1, remote=1
-#  * usecase_android_device, usecase_banking_gsm_sim, usecase_too_old_android
+#  * usecase_nongsm_device, usecase_secure_keepass, usecase_secure_computing, usecase_nonotp_device, usecase_personal_keepass, usecase_computer
 # 
 # android_secure
 #   phys=2, near=2, remote=2
 #  * usecase_secure_keepass, usecase_android_device
+#  * usecase_secure_google_account
+#  * usecase_freeotp_work
 #  * usecase_freeotp_personal
 #  * usecase_banking_app
+# 
+# windows_tablet
+#   phys=1, near=1, remote=1
+#  * usecase_personal_computing_lite, usecase_nongsm_device, usecase_nonotp_device, usecase_windows_apps_games_careful, usecase_computer
+# 
+# work_computer
+#   phys=2, near=2, remote=2
+#  * usecase_computer, usecase_nongsm_device, usecase_work, usecase_nonotp_device
+# 
+# work_pocket_computer
+#   phys=2, near=2, remote=2
+#  * usecase_android_device, usecase_work_google_account_android
+#  * usecase_banking_gsm_sim
 # ---------------------------------------------
-# 
-# 
+
+
 
 import random
 
@@ -135,15 +147,19 @@ attack_app_medium = AttackVector(max_sec_phys=DIFF_HARD, max_sec_near=DIFF_HARD,
 
 # Junk apps, apps with ads, apps with too many permissions, suspicious apps.
 attack_app_easy = AttackVector(max_sec_phys=DIFF_HARD, max_sec_near=DIFF_HARD,
+                               # TODO max_sec_remote=DIFF_TRIVIAL)
                                max_sec_remote=DIFF_EASY)
 
 # Attacker sees encrypted traffic or attacker can execute code on a logged-in android device (but
 # not on a logged-in desktop).
+# OR the attacker is google (improbable).
 attack_google_hard = AttackVector(max_sec_phys=DIFF_HARD, max_sec_near=DIFF_HARD,
                                   max_sec_remote=DIFF_HARD)
 
 # Attacker can access the google account from a logged-in desktop, can sniff & spoof the password
-# and 2FA.
+# and 2FA (e.g. through malware).
+# TODO rework this so that it captures how chained attacks can work - e.g. malware on the PC
+# can get an app installed on the mobile device.
 attack_google_easy = AttackVector(max_sec_phys=DIFF_HARD, max_sec_near=DIFF_HARD,
                                   max_sec_remote=DIFF_EASY)
 
@@ -243,6 +259,7 @@ usecase_banking_gsm_sim = Usecase(name="usecase_banking_gsm_sim",
                                   req_min_sec_phys=DIFF_EASY, req_min_sec_near=DIFF_EASY,
                                   req_min_sec_remote=DIFF_EASY,
                                   introduces_attack_vectors=[attack_gsm_hard],
+                                  # delete if two-SIM phone is considered
                                   colliding_usecases=[usecase_personal_gsm_sim])
 
 # I just refuse to do anything with this account on a device with any GSM SIM used, even for one
@@ -252,6 +269,14 @@ usecase_banking_app = Usecase(name="usecase_banking_app",
                               req_min_sec_remote=DIFF_HARD,
                               introduces_attack_vectors=[attack_net_hard, attack_app_hard,
                                                          attack_wifi_hard],
+                              # GSM usage == insecure closed-source computer running with full
+                              # privileges to anything the user-facing computer in the device
+                              # does.
+                              # At least some banking apps rely only on the knowledge of IMEI
+                              # (clonable and fakeable) and username&password - which, if copied
+                              # from the device, provides full access to the money.
+                              # Therefore anything gsm-related must not be used together with
+                              # this usecase.
                               colliding_usecases=[usecase_banking_gsm_sim,
                                                   usecase_personal_gsm_sim])
 
@@ -260,6 +285,7 @@ usecase_banking_app = Usecase(name="usecase_banking_app",
 # Assuming it is non-trivial to misuse a logged in account on an android device to surreptitiously
 # install apps on another device
 # Banking SIM also used for recovery of the google account, so it can't be on the same device.
+# Personal SIM is used a lot of time, so there's a lot of exposure to potential attacks.
 # Personal FreeOTP has 2FA for the personal google account, so it can't be on the same device.
 usecase_personal_google_account_android = Usecase(name="usecase_personal_google_account_android",
                                                   req_min_sec_phys=DIFF_HARD,
@@ -270,6 +296,7 @@ usecase_personal_google_account_android = Usecase(name="usecase_personal_google_
                                                                              attack_app_hard,
                                                                              attack_wifi_hard],
                                                   colliding_usecases=[usecase_banking_gsm_sim,
+                                                                      usecase_personal_gsm_sim,
                                                                       usecase_freeotp_personal])
 
 # Personal google account is for everyday use on those kinds of devices that can be remotely attacked
@@ -277,6 +304,7 @@ usecase_personal_google_account_android = Usecase(name="usecase_personal_google_
 # Assuming it is trivial to misuse a logged in account on a desktop computer to surreptitiously
 # install apps on another device
 # Banking SIM also used for recovery of the google account, so it can't be on the same device.
+# Personal SIM is used a lot of time, so there's a lot of exposure to potential attacks.
 # Personal FreeOTP has 2FA for the personal google account, so it can't be on the same device.
 usecase_personal_google_account_computer = Usecase(name="usecase_personal_google_account_computer",
                                                    req_min_sec_phys=DIFF_HARD,
@@ -287,6 +315,7 @@ usecase_personal_google_account_computer = Usecase(name="usecase_personal_google
                                                                               attack_app_hard,
                                                                               attack_wifi_hard],
                                                    colliding_usecases=[usecase_banking_gsm_sim,
+                                                                       usecase_personal_gsm_sim,
                                                                        usecase_freeotp_personal])
 
 usecase_junk_apps = Usecase(name="usecase_junk_apps",
@@ -294,12 +323,18 @@ usecase_junk_apps = Usecase(name="usecase_junk_apps",
                             req_min_sec_remote=DIFF_TRIVIAL,
                             introduces_attack_vectors=[attack_app_easy, attack_net_easy,
                                                        attack_wifi_easy],
-                            colliding_usecases=[])
+                            # Apps running on the gsm phone would have access to the banking
+                            # phone number, nullifying that aspect of security through
+                            # obscurity.
+                            colliding_usecases=[usecase_banking_gsm_sim])
 
 usecase_work = Usecase(name="usecase_work",
                        req_min_sec_phys=DIFF_HARD,
                        req_min_sec_near=DIFF_HARD,
                        req_min_sec_remote=DIFF_HARD,
+                       introduces_attack_vectors=[attack_google_hard,
+                                                  attack_net_hard,
+                                                  attack_wifi_hard],
                        colliding_usecases=[usecase_freeotp_personal,
                                            usecase_freeotp_work,
                                            usecase_bluetooth_music,
@@ -360,7 +395,8 @@ usecase_windows_apps_games_careful = Usecase(name="usecase_windows_apps_games_ca
 usecase_personal_computing = Usecase(name="usecase_personal_computing",
                                      req_min_sec_phys=DIFF_HARD, req_min_sec_near=DIFF_EASY,
                                      req_min_sec_remote=DIFF_EASY,
-                                     introduces_attack_vectors=[attack_app_hard, attack_net_easy,
+                                     introduces_attack_vectors=[attack_app_hard,
+                                                                attack_net_easy,  # ads on the web
                                                                 attack_wifi_hard],
                                      colliding_usecases=[usecase_personal_gsm_sim,
                                                          usecase_junk_apps])
@@ -383,6 +419,80 @@ usecase_secure_computing = Usecase(name="usecase_secure_computing",
                                    colliding_usecases=[usecase_personal_gsm_sim,
                                                        usecase_banking_gsm_sim, usecase_work])
 
+# The phone is too old and shitty to run most of stuff even if I wanted
+usecase_too_old_android = Usecase(name="usecase_too_old_android",
+                                  colliding_usecases=[usecase_personal_google_account_computer,
+                                                      usecase_banking_app, usecase_junk_apps,
+                                                      usecase_personal_keepass,
+                                                      usecase_secure_keepass,
+                                                      usecase_secure_google_account,
+                                                      usecase_personal_google_account_android,
+                                                      usecase_personal_gsm_sim,
+                                                      usecase_personal_computing,
+                                                      usecase_secure_computing])
+
+# All operating systems and their default browsers have no ad blocker whatsoever, so that's at
+# least one reason why the minimum required remote security is only DIFF_EASY. Also, TLS is used,
+# so the minimum required nearby security is DIFF_EASY as well. This fits the corporate-approved
+# usage pattern.
+# I store no work-related passwords in any of my keepass, so no further collisions here.
+usecase_sometimes_login_to_work_email = Usecase(name="usecase_sometimes_login_to_work_email",
+                                                req_min_sec_phys=DIFF_HARD,
+                                                req_min_sec_near=DIFF_EASY,
+                                                req_min_sec_remote=DIFF_EASY,
+                                                colliding_usecases=[usecase_freeotp_work])
+
+# Introduces attack_google_hard from the point of securing the google account itself, but it is
+# a corporate account in control of someone else than me, it can install apps on the device
+# remotely (any google account can do it) and can technically exploit the device, it can track my
+# location and usage patterns, it can remotely wipe the device. So it's secure from the point of
+# the company, but makes the device insecure from the point of personal computing. Thus excluding
+# personal usecases where random deletion or any of the mentioned activities pose a problem.
+# 
+# If the work account is used inside a managed profile, it should have much fewer avenues of
+# mischief. Still, some device data are passed to the managed profile, and the managed profile
+# is usually set up by an app that exists outside the managed profile, in the personal profile,
+# and which can do various things per its permissions (more so if it is set up as device admin).
+# Therefore, it is a valid strategy to not keep myself updated on possible new ways of interaction
+# between the personal and managed profiles and just have physically separated devices.
+# Reading
+# * https://blog.cdemi.io/never-accept-an-mdm-policy-on-your-personal-phone/
+# * https://source.android.com/devices/tech/admin/managed-profiles
+# * https://developer.android.com/work/managed-profiles
+# * https://bayton.org/2018/03/mobileiron-launch-android-enterprise-work-profiles-on-fully-managed-devices/
+#
+# The logged-in account most probably has wide permissions to the account data, so if the device
+# is compromised, the attacker can most probably do a lot of damage or exfiltrate a lot of data.
+# While the corporate-approved usecase doesn't contain and ad blocker, allowing a DIFF_EASY level
+# of remote security, there are other remote attack avenues that should be prevented (like
+# bluetooth). Since my usecase for work account entails almost no web browsing and is centered
+# around email and calendar, and I can install an ad blocker, I therefore require the DIFF_HARD
+# level of security.
+#
+# Nowhere does the corporate policy state that a SIM card / GSM can't be used on the logged-in
+# device, hence allowing the banking SIM card usecase. Also, the banking SMSes are ephemeral
+# and even if the company manages to delete all my SMS, it doesn't matter at all.
+usecase_work_google_account_android = Usecase(name="usecase_work_google_account_android",
+                                              req_min_sec_phys=DIFF_HARD,
+                                              req_min_sec_near=DIFF_HARD,
+                                              req_min_sec_remote=DIFF_HARD,
+                                              introduces_attack_vectors=[attack_google_hard,
+                                                                         attack_net_hard,
+                                                                         attack_app_hard,
+                                                                         attack_wifi_hard],
+                                              colliding_usecases=[# usecase_banking_gsm_sim,
+                                                                  usecase_junk_apps,  # to protect the corporate data
+                                                                  usecase_personal_google_account_computer,
+                                                                  usecase_banking_app, 
+                                                                  usecase_personal_keepass,
+                                                                  usecase_secure_keepass,
+                                                                  usecase_secure_google_account,
+                                                                  usecase_personal_google_account_android,
+                                                                  usecase_personal_gsm_sim,  # because call history and sms might be important for me
+                                                                  usecase_personal_computing,
+                                                                  usecase_secure_computing,
+                                                                  usecase_freeotp_personal])
+
 # Just to mark a device that it has no GSM capabilities.
 usecase_nongsm_device = Usecase(name="usecase_nongsm_device",
                                 colliding_usecases=[usecase_personal_gsm_sim,
@@ -396,36 +506,16 @@ usecase_nonotp_device = Usecase(name="usecase_nonotp_device",
 usecase_computer = Usecase(name="usecase_computer",
                            colliding_usecases=[usecase_banking_app,
                                                usecase_personal_google_account_android,
+                                               usecase_work_google_account_android,
                                                usecase_junk_apps,
                                                usecase_freeotp_work, usecase_freeotp_personal])
 
 # Not used exactly as a desktop computer
 usecase_android_device = Usecase(name="usecase_android_device",
-                                 colliding_usecases=[usecase_personal_google_account_computer])
+                                 colliding_usecases=[usecase_personal_google_account_computer,
+                                                     usecase_computer,
+                                                     usecase_work])
 
-# The phone is too old and shitty to run most of stuff even if I wanted
-usecase_too_old_android = Usecase(name="usecase_too_old_android",
-                                  colliding_usecases=[usecase_personal_google_account_computer,
-                                                      usecase_banking_app, usecase_junk_apps,
-                                                      usecase_personal_keepass,
-                                                      usecase_secure_keepass,
-                                                      usecase_secure_google_account,
-                                                      usecase_personal_google_account_android,
-                                                      usecase_personal_gsm_sim,
-                                                      usecase_personal_computing,
-                                                      usecase_secure_computing])
-
-# All operating systems and their different browsers have no ad blocker whatsoever, so that's at
-# least one reason
-# why the minimum required remote security is only DIFF_EASY. Also, TLS is used, so the minimum
-# required nearby
-# security is DIFF_EASY as well.
-# I store no work-related passwords in any of my keepass, so no further collisions here.
-usecase_sometimes_login_to_work_email = Usecase(name="usecase_sometimes_login_to_work_email",
-                                                req_min_sec_phys=DIFF_HARD,
-                                                req_min_sec_near=DIFF_EASY,
-                                                req_min_sec_remote=DIFF_EASY,
-                                                colliding_usecases=[usecase_freeotp_work])
 
 
 class Device:
@@ -523,8 +613,7 @@ computer_sec = Device(name="computer_sec",
                       max_sec_phys=DIFF_HARD, max_sec_near=DIFF_HARD, max_sec_remote=DIFF_HARD)
 
 phone_banking_sim = Device(name="phone_banking_sim",
-                           pinned_usecases=[usecase_android_device, usecase_too_old_android,
-                                            usecase_banking_gsm_sim],
+                           pinned_usecases=[usecase_android_device, usecase_too_old_android, ],
                            # it's an old phone, it has to be powered off when not in use to mitigate
                            # most of the attack surface
                            max_sec_phys=DIFF_EASY, max_sec_near=DIFF_EASY, max_sec_remote=DIFF_EASY)
@@ -546,12 +635,21 @@ work_computer = Device(name="work_computer",
                                         usecase_nonotp_device, usecase_work, ],
                        max_sec_phys=DIFF_HARD, max_sec_near=DIFF_HARD, max_sec_remote=DIFF_HARD)
 
+work_pocket_computer = Device(name="work_pocket_computer",
+                                 pinned_usecases=[usecase_android_device,
+                                                  usecase_work_google_account_android],
+                                 max_sec_phys=DIFF_HARD, max_sec_near=DIFF_HARD,
+                                 max_sec_remote=DIFF_HARD)
+
 devices = [primary_pocket_computer, primary_laptop_computer, gsm_phone, computer_sec,
-           phone_banking_sim, android_secure, windows_tablet, work_computer]
+           # phone_banking_sim, 
+           android_secure, windows_tablet, work_computer, work_pocket_computer]
+
 
 # usecases to distribute, each usecase to one device
 usecases = [usecase_freeotp_personal, usecase_freeotp_work, usecase_banking_app,
-            usecase_secure_google_account, usecase_junk_apps, usecase_sometimes_login_to_work_email]
+            usecase_secure_google_account, usecase_junk_apps, usecase_sometimes_login_to_work_email,
+            usecase_banking_gsm_sim]
 
 
 def random_device_usecase_assignment(devices, usecases):
